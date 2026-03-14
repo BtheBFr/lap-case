@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lap.case от Lap.comp | Завод "Осколки"</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ЭКРАН ВХОДА -->
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <h1 class="site-title">Lap.case</h1>
+            <h2 class="site-subtitle">от Lap.comp</h2>
+            <p class="factory-name">от Завода "Осколки"</p>
+            
+            <div class="login-box">
+                <h3>Вход по токену</h3>
+                <p class="login-info">Введи свой токен из Google Таблицы</p>
+                
+                <input type="text" id="tokenInput" placeholder="Например: OEOI949" class="login-input">
+                
+                <div class="users-example">
+                    <p>👤 Доступные токены:</p>
+                    <span class="user-token">OEOI949</span> - Данил Гилев<br>
+                    <span class="user-token">IVAN123</span> - Иван Петров<br>
+                    <span class="user-token">LENA789</span> - Елена Соколова<br>
+                    <span class="user-token">POU456</span> - Алексей Иванов
+                </div>
+                
+                <button id="loginBtn" class="login-btn">Войти в Lap.case</button>
+                <p id="loginError" class="error-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОСНОВНОЙ САЙТ -->
+    <div id="mainScreen" class="screen">
+        <!-- Шапка -->
+        <header class="header">
+            <div class="logo">
+                <h1>Lap.case</h1>
+                <span class="logo-small">от Lap.comp</span>
+                <span class="factory-badge">Завод "Осколки"</span>
+            </div>
+            
+            <div class="user-info">
+                <span id="userNameDisplay" class="user-name"></span>
+                <span id="userTokenDisplay" class="user-token-small"></span>
+                <div class="balance">
+                    <span>💰</span>
+                    <span id="balanceDisplay">100</span>
+                    <span>руб</span>
+                </div>
+                <button id="logoutBtn" class="logout-btn">🚪</button>
+            </div>
+        </header>
+
+        <!-- Навигация -->
+        <nav class="nav">
+            <button class="nav-btn active" data-page="shop">🏪 Магазин</button>
+            <button class="nav-btn" data-page="inventory">📦 Инвентарь</button>
+            <button class="nav-btn" data-page="collection">🎁 Коллекция</button>
+            <button class="nav-btn" data-page="market">🏷️ Торговая площадка</button>
+            <button class="nav-btn" data-page="trade">🔄 Трейд</button>
+        </nav>
+
+        <!-- Контент -->
+        <main id="content">
+            <!-- Магазин -->
+            <div id="shopPage" class="page active">
+                <h2>Магазин кейсов</h2>
+                <div class="cases-grid" id="casesContainer"></div>
+            </div>
+
+            <!-- Инвентарь -->
+            <div id="inventoryPage" class="page">
+                <h2>Мои кейсы</h2>
+                <div class="inventory-grid" id="inventoryContainer"></div>
+            </div>
+
+            <!-- Коллекция -->
+            <div id="collectionPage" class="page">
+                <h2>Моя коллекция</h2>
+                <div class="collection-grid" id="collectionContainer"></div>
+            </div>
+
+            <!-- Торговая площадка -->
+            <div id="marketPage" class="page">
+                <h2>Торговая площадка</h2>
+                <div class="market-grid" id="marketContainer"></div>
+            </div>
+
+            <!-- Трейд -->
+            <div id="tradePage" class="page">
+                <h2>Обмен с друзьями</h2>
+                <div class="trade-container">
+                    <div class="trade-form">
+                        <h3>Отправить предмет</h3>
+                        <select id="tradeItemSelect" class="trade-select">
+                            <option value="">Выбери предмет</option>
+                        </select>
+                        
+                        <input type="text" id="tradeTokenInput" placeholder="Токен получателя" class="trade-input">
+                        
+                        <button id="tradeBtn" class="trade-btn">Отправить</button>
+                        <p id="tradeMessage" class="trade-message"></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Модалка открытия кейса -->
+        <div id="caseModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3 id="modalCaseName">Открытие кейса</h3>
+                
+                <div class="case-opening">
+                    <div class="slots-container" id="slotsContainer">
+                        <!-- Слоты для анимации -->
+                    </div>
+                    
+                    <button id="openCaseBtn" class="open-btn">ОТКРЫТЬ КЕЙС</button>
+                    
+                    <div id="resultItem" class="result-item hidden">
+                        <img id="resultImage" src="" alt="">
+                        <p id="resultName"></p>
+                        <p id="resultRarity"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
