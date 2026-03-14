@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Lap.case от Lap.comp | Завод "Осколки"</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -16,21 +16,16 @@
             
             <div class="login-box">
                 <h3>Вход по токену</h3>
-                <p class="login-info">Введи свой токен из Google Таблицы</p>
+                <p class="login-info">🔐 Получить токен только здесь:</p>
+                <a href="https://t.me/lapcase_bot" target="_blank" class="telegram-link">👉 @lapcase_bot</a>
                 
-                <input type="text" id="tokenInput" placeholder="Например: OEOI949" class="login-input">
-                
-                <div class="users-example">
-                    <p>👤 Доступные токены:</p>
-                    <span class="user-token">OEOI949</span> - Данил Гилев<br>
-                    <span class="user-token">IVAN123</span> - Иван Петров<br>
-                    <span class="user-token">LENA789</span> - Елена Соколова<br>
-                    <span class="user-token">POU456</span> - Алексей Иванов
-                </div>
+                <input type="text" id="tokenInput" placeholder="Введи свой токен" class="login-input">
                 
                 <button id="loginBtn" class="login-btn">Войти в Lap.case</button>
                 <p id="loginError" class="error-message"></p>
             </div>
+            
+            <p class="login-footer">Токен можно получить только в Telegram боте</p>
         </div>
     </div>
 
@@ -40,29 +35,26 @@
         <header class="header">
             <div class="logo">
                 <h1>Lap.case</h1>
-                <span class="logo-small">от Lap.comp</span>
-                <span class="factory-badge">Завод "Осколки"</span>
+                <span class="factory-badge">Осколки</span>
             </div>
             
             <div class="user-info">
                 <span id="userNameDisplay" class="user-name"></span>
-                <span id="userTokenDisplay" class="user-token-small"></span>
                 <div class="balance">
                     <span>💰</span>
                     <span id="balanceDisplay">100</span>
-                    <span>руб</span>
                 </div>
                 <button id="logoutBtn" class="logout-btn">🚪</button>
             </div>
         </header>
 
-        <!-- Навигация -->
-        <nav class="nav">
-            <button class="nav-btn active" data-page="shop">🏪 Магазин</button>
-            <button class="nav-btn" data-page="inventory">📦 Инвентарь</button>
-            <button class="nav-btn" data-page="collection">🎁 Коллекция</button>
-            <button class="nav-btn" data-page="market">🏷️ Торговая площадка</button>
-            <button class="nav-btn" data-page="trade">🔄 Трейд</button>
+        <!-- Нижняя навигация (для мобил) -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-page="shop">🏪</button>
+            <button class="nav-btn" data-page="inventory">📦</button>
+            <button class="nav-btn" data-page="collection">🎁</button>
+            <button class="nav-btn" data-page="market">🏷️</button>
+            <button class="nav-btn" data-page="trade">🔄</button>
         </nav>
 
         <!-- Контент -->
@@ -101,7 +93,7 @@
                             <option value="">Выбери предмет</option>
                         </select>
                         
-                        <input type="text" id="tradeTokenInput" placeholder="Токен получателя" class="trade-input">
+                        <input type="text" id="tradeNameInput" placeholder="Имя получателя" class="trade-input">
                         
                         <button id="tradeBtn" class="trade-btn">Отправить</button>
                         <p id="tradeMessage" class="trade-message"></p>
@@ -113,12 +105,22 @@
         <!-- Модалка открытия кейса -->
         <div id="caseModal" class="modal">
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h3 id="modalCaseName">Открытие кейса</h3>
+                <div class="modal-header">
+                    <h3 id="modalCaseName">Открытие кейса</h3>
+                    <span class="close">&times;</span>
+                </div>
                 
                 <div class="case-opening">
-                    <div class="slots-container" id="slotsContainer">
-                        <!-- Слоты для анимации -->
+                    <!-- Стрелка-указатель -->
+                    <div class="pointer-container">
+                        <div class="pointer">🔽</div>
+                    </div>
+                    
+                    <!-- Карусель с предметами -->
+                    <div class="carousel-container" id="carouselContainer">
+                        <div class="carousel-track" id="carouselTrack">
+                            <!-- Сюда будут добавляться предметы -->
+                        </div>
                     </div>
                     
                     <button id="openCaseBtn" class="open-btn">ОТКРЫТЬ КЕЙС</button>
