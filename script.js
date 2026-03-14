@@ -1,8 +1,12 @@
 // Глобальные переменные
 let currentUser = null;
+let allUsers = []; // Для поиска по имени
 
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', () => {
+    // Сразу загружаем всех пользователей
+    loadAllUsers();
+    
     // Проверяем, есть ли сохраненный токен
     const savedToken = localStorage.getItem('lapcase_token');
     if (savedToken) {
@@ -18,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             const page = btn.dataset.page;
             showPage(page);
+            
+            // Обновляем активную кнопку
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
         });
     });
     
@@ -33,6 +41,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tradeBtn').addEventListener('click', tradeItem);
 });
 
+// Загрузка всех пользователей (для поиска по имени)
+async function loadAllUsers() {
+    try {
+        const url = `${CONFIG.googleSheets.webAppUrl}?action=getAllUsers`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            allUsers = data.users;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки пользователей:', error);
+    }
+}
+
 // Вход по токену
 function login() {
     const token = document.getElementById('tokenInput').value.trim();
@@ -46,8 +69,6 @@ function login() {
 
 async function loginWithToken(token) {
     try {
-        showLoading();
-        
         const url = `${CONFIG.googleSheets.webAppUrl}?action=getUser&token=${token}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -60,27 +81,26 @@ async function loginWithToken(token) {
             
             // Обновляем интерфейс
             document.getElementById('userNameDisplay').textContent = currentUser.name;
-            document.getElementById('userTokenDisplay').textContent = currentUser.token;
             document.getElementById('balanceDisplay').textContent = currentUser.balance;
             
             // Переключаем экраны
             document.getElementById('loginScreen').classList.remove('active');
             document.getElementById('mainScreen').classList.add('active');
             
-            // Загружаем данные
-            loadShop();
-            loadInventory();
-            loadCollection();
-            loadMarket();
-            loadTradeItems();
+            // Загружаем все данные сразу
+            await Promise.all([
+                loadShop(),
+                loadInventory(),
+                loadCollection(),
+                loadMarket(),
+                loadTradeItems()
+            ]);
         } else {
             showError('Неверный токен');
         }
     } catch (error) {
         showError('Ошибка соединения');
         console.error(error);
-    } finally {
-        hideLoading();
     }
 }
 
@@ -95,38 +115,10 @@ function logout() {
 
 // Показать страницу
 function showPage(pageName) {
-    // Обновляем кнопки
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.page === pageName) {
-            btn.classList.add('active');
-        }
-    });
-    
-    // Обновляем страницы
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
     document.getElementById(`${pageName}Page`).classList.add('active');
-    
-    // Загружаем данные для страницы
-    switch(pageName) {
-        case 'shop':
-            loadShop();
-            break;
-        case 'inventory':
-            loadInventory();
-            break;
-        case 'collection':
-            loadCollection();
-            break;
-        case 'market':
-            loadMarket();
-            break;
-        case 'trade':
-            loadTradeItems();
-            break;
-    }
 }
 
 // Загрузка магазина
@@ -138,10 +130,10 @@ function loadShop() {
         const card = document.createElement('div');
         card.className = 'case-card';
         card.innerHTML = `
-            <img src="${caseData.image}" alt="${caseData.name}">
+            <img src="${caseData.image}" alt="${caseData.name}" onerror="this.src='images/placeholder.png'">
             <h3>${caseData.name}</h3>
-            <div class="case-price">${caseData.price} руб</div>
-            <button class="buy-btn" data-case="${key}">Купить кейс</button>
+            <div class="case-price">${caseData.price} ₽</div>
+            <button class="buy-btn" data-case="${key}">Купить</button>
         `;
         
         card.querySelector('.buy-btn').addEventListener('click', () => buyCase(key));
@@ -170,6 +162,9 @@ async function buyCase(caseKey) {
             currentUser.balance = data.newBalance;
             document.getElementById('balanceDisplay').textContent = currentUser.balance;
             alert('Кейс куплен!');
+            loadInventory(); // Обновляем инвентарь
+        } else {
+            alert(data.error || 'Ошибка при покупке');
         }
     } catch (error) {
         alert('Ошибка при покупке');
@@ -181,7 +176,7 @@ async function loadInventory() {
     if (!currentUser) return;
     
     const container = document.getElementById('inventoryContainer');
-    container.innerHTML = '<p>Загрузка...</p>';
+    container.innerHTML = '<p class="loading">Загрузка...</p>';
     
     try {
         const url = `${CONFIG.googleSheets.webAppUrl}?action=getCases&token=${currentUser.token}`;
@@ -203,9 +198,9 @@ async function loadInventory() {
                 card.className = 'inventory-card';
                 card.innerHTML = `
                     <h3>${c.caseName}</h3>
-                    <p class="case-price">${c.price} руб</p>
-                    <p class="case-status">Статус: ${c.status}</p>
-                    <button class="open-case-btn" data-case="${c.caseName}">Открыть кейс</button>
+                    <div class="case-price">${c.price} ₽</div>
+                    <div class="case-status">${c.status}</div>
+                    <button class="open-case-btn" data-case="${c.caseName}">Открыть</button>
                 `;
                 
                 card.querySelector('.open-case-btn').addEventListener('click', () => {
@@ -216,24 +211,36 @@ async function loadInventory() {
             });
         }
     } catch (error) {
-        container.innerHTML = '<p>Ошибка загрузки</p>';
+        container.innerHTML = '<p class="error">Ошибка загрузки</p>';
     }
 }
 
 // Открыть модалку кейса
 function openCaseModal(caseName) {
-    document.getElementById('modalCaseName').textContent = `Открытие: ${caseName}`;
+    document.getElementById('modalCaseName').textContent = caseName;
     document.getElementById('caseModal').dataset.caseName = caseName;
     document.getElementById('caseModal').classList.add('active');
     
-    // Создаем слоты для анимации
-    const slotsContainer = document.getElementById('slotsContainer');
-    slotsContainer.innerHTML = '';
+    // Находим предметы для этого кейса
+    const caseKey = Object.keys(CONFIG.cases).find(key => CONFIG.cases[key].name === caseName);
+    const caseData = CONFIG.cases[caseKey];
     
-    for (let i = 0; i < 20; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
-        slotsContainer.appendChild(slot);
+    // Создаем карусель
+    const track = document.getElementById('carouselTrack');
+    track.innerHTML = '';
+    track.classList.remove('spinning', 'stopping');
+    
+    // Добавляем много предметов для длинной прокрутки
+    for (let i = 0; i < 30; i++) {
+        caseData.items.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'carousel-item';
+            itemDiv.innerHTML = `
+                <img src="${item.image}" alt="${item.name}" onerror="this.src='images/placeholder.png'">
+                <span>${item.name}</span>
+            `;
+            track.appendChild(itemDiv);
+        });
     }
     
     // Скрываем результат
@@ -246,38 +253,78 @@ function startCaseOpening() {
     const caseKey = Object.keys(CONFIG.cases).find(key => CONFIG.cases[key].name === caseName);
     const caseData = CONFIG.cases[caseKey];
     
-    // Анимация прокрутки
-    const slots = document.querySelectorAll('.slot');
-    let counter = 0;
+    const track = document.getElementById('carouselTrack');
+    const container = document.querySelector('.carousel-container');
     
-    const interval = setInterval(() => {
-        slots.forEach(slot => {
-            const randomItem = caseData.items[Math.floor(Math.random() * caseData.items.length)];
-            slot.innerHTML = `
-                <img src="${randomItem.image}" alt="${randomItem.name}">
-                <span>${randomItem.name}</span>
-            `;
+    // Убираем старые классы
+    track.classList.remove('stopping');
+    track.classList.add('spinning');
+    
+    // Выключаем кнопку на время анимации
+    const openBtn = document.getElementById('openCaseBtn');
+    openBtn.disabled = true;
+    openBtn.style.opacity = '0.5';
+    
+    // Останавливаем через рандомное время
+    setTimeout(() => {
+        // Останавливаем анимацию
+        track.classList.remove('spinning');
+        track.classList.add('stopping');
+        
+        // Вычисляем позицию остановки
+        const scrollAmount = Math.random() * 2000 + 1000;
+        
+        // Плавно прокручиваем до позиции
+        container.scrollTo({
+            left: scrollAmount,
+            behavior: 'smooth'
         });
         
-        counter++;
+        // Ждем окончания прокрутки
+        setTimeout(() => {
+            // Получаем элемент под стрелкой (примерно середина)
+            const containerRect = container.getBoundingClientRect();
+            const centerX = containerRect.left + containerRect.width / 2;
+            
+            // Ищем элемент под центром
+            const items = document.querySelectorAll('.carousel-item');
+            let selectedItem = null;
+            
+            for (let item of items) {
+                const rect = item.getBoundingClientRect();
+                if (rect.left <= centerX && rect.right >= centerX) {
+                    selectedItem = item;
+                    break;
+                }
+            }
+            
+            if (selectedItem) {
+                const img = selectedItem.querySelector('img').src;
+                const name = selectedItem.querySelector('span').textContent;
+                
+                // Находим полный предмет
+                const item = caseData.items.find(i => i.name === name);
+                
+                // Показываем результат
+                document.getElementById('resultImage').src = img;
+                document.getElementById('resultName').textContent = name;
+                document.getElementById('resultRarity').textContent = item ? item.rarity : '';
+                document.getElementById('resultRarity').className = `rarity rarity-${item ? item.rarity.toLowerCase() : ''}`;
+                document.getElementById('resultItem').classList.remove('hidden');
+                
+                // Сохраняем результат
+                if (item) {
+                    saveOpenedCase(caseName, item);
+                }
+            }
+            
+            // Включаем кнопку
+            openBtn.disabled = false;
+            openBtn.style.opacity = '1';
+            
+        }, 2000); // Ждем окончания smooth scroll
         
-        if (counter > 20) {
-            clearInterval(interval);
-            
-            // Выбираем предмет по шансам
-            const item = getRandomItemByChance(caseData.items);
-            
-            // Показываем результат
-            document.getElementById('resultImage').src = item.image;
-            document.getElementById('resultName').textContent = item.name;
-            document.getElementById('resultRarity').textContent = item.rarity;
-            document.getElementById('resultRarity').className = `rarity rarity-${item.rarity.toLowerCase()}`;
-            document.getElementById('resultItem').classList.remove('hidden');
-            
-            // Сохраняем результат
-            saveOpenedCase(caseName, item);
-        }
-    }, 100);
+    }, Math.random() * 1000 + 1500); // Останавливаем через 1.5-2.5 секунды
 }
 
 // Выбор предмета по шансам
@@ -300,7 +347,7 @@ async function saveOpenedCase(caseName, item) {
     if (!currentUser) return;
     
     try {
-        const url = `${CONFIG.googleSheets.webAppUrl}?action=openCase&token=${currentUser.token}&caseName=${caseName}&item=${item.name}&image=${item.image}&rarity=${item.rarity}`;
+        const url = `${CONFIG.googleSheets.webAppUrl}?action=openCase&token=${currentUser.token}&caseName=${caseName}&item=${encodeURIComponent(item.name)}&image=${encodeURIComponent(item.image)}&rarity=${encodeURIComponent(item.rarity)}`;
         await fetch(url);
         
         // Обновляем инвентарь и коллекцию
@@ -316,7 +363,7 @@ async function loadCollection() {
     if (!currentUser) return;
     
     const container = document.getElementById('collectionContainer');
-    container.innerHTML = '<p>Загрузка...</p>';
+    container.innerHTML = '<p class="loading">Загрузка...</p>';
     
     try {
         const url = `${CONFIG.googleSheets.webAppUrl}?action=getCollection&token=${currentUser.token}`;
@@ -335,9 +382,9 @@ async function loadCollection() {
                 const card = document.createElement('div');
                 card.className = 'item-card';
                 card.innerHTML = `
-                    <img src="${item.image}" alt="${item.item}">
+                    <img src="${item.image}" alt="${item.item}" onerror="this.src='images/placeholder.png'">
                     <h4>${item.item}</h4>
-                    <p class="rarity rarity-${item.rarity.toLowerCase()}">${item.rarity}</p>
+                    <div class="rarity rarity-${item.rarity.toLowerCase()}">${item.rarity}</div>
                     <button class="sell-btn" data-item="${item.item}">Продать</button>
                 `;
                 
@@ -347,7 +394,7 @@ async function loadCollection() {
             });
         }
     } catch (error) {
-        container.innerHTML = '<p>Ошибка загрузки</p>';
+        container.innerHTML = '<p class="error">Ошибка загрузки</p>';
     }
 }
 
@@ -361,7 +408,7 @@ async function sellItem(itemName) {
     }
     
     try {
-        const url = `${CONFIG.googleSheets.webAppUrl}?action=sellItem&token=${currentUser.token}&itemName=${itemName}&price=${price}`;
+        const url = `${CONFIG.googleSheets.webAppUrl}?action=sellItem&token=${currentUser.token}&itemName=${encodeURIComponent(itemName)}&price=${price}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -369,6 +416,8 @@ async function sellItem(itemName) {
             alert('Товар выставлен на продажу!');
             loadCollection();
             loadMarket();
+        } else {
+            alert(data.error || 'Ошибка при продаже');
         }
     } catch (error) {
         alert('Ошибка при продаже');
@@ -378,7 +427,7 @@ async function sellItem(itemName) {
 // Загрузка торговой площадки
 async function loadMarket() {
     const container = document.getElementById('marketContainer');
-    container.innerHTML = '<p>Загрузка...</p>';
+    container.innerHTML = '<p class="loading">Загрузка...</p>';
     
     try {
         const url = `${CONFIG.googleSheets.webAppUrl}?action=getMarket`;
@@ -399,7 +448,7 @@ async function loadMarket() {
                 card.innerHTML = `
                     <h4>${item.item}</h4>
                     <p>Продавец: ${item.seller}</p>
-                    <p class="case-price">${item.price} руб</p>
+                    <div class="case-price">${item.price} ₽</div>
                     <button class="buy-item-btn" data-id="${item.id}" data-seller="${item.seller}" data-item="${item.item}" data-price="${item.price}">Купить</button>
                 `;
                 
@@ -409,7 +458,7 @@ async function loadMarket() {
             });
         }
     } catch (error) {
-        container.innerHTML = '<p>Ошибка загрузки</p>';
+        container.innerHTML = '<p class="error">Ошибка загрузки</p>';
     }
 }
 
@@ -427,10 +476,10 @@ async function buyItem(itemId, sellerToken, itemName, price) {
         return;
     }
     
-    if (!confirm(`Купить ${itemName} за ${price} руб?`)) return;
+    if (!confirm(`Купить ${itemName} за ${price} ₽?`)) return;
     
     try {
-        const url = `${CONFIG.googleSheets.webAppUrl}?action=buyItem&buyerToken=${currentUser.token}&itemId=${itemId}&price=${price}&sellerToken=${sellerToken}&itemName=${itemName}`;
+        const url = `${CONFIG.googleSheets.webAppUrl}?action=buyItem&buyerToken=${currentUser.token}&itemId=${itemId}&price=${price}&sellerToken=${sellerToken}&itemName=${encodeURIComponent(itemName)}`;
         const response = await fetch(url);
         const data = await response.json();
         
@@ -477,35 +526,43 @@ async function loadTradeItems() {
     }
 }
 
-// Трейд предмета
+// Трейд предмета (по имени получателя)
 async function tradeItem() {
     const itemName = document.getElementById('tradeItemSelect').value;
-    const toToken = document.getElementById('tradeTokenInput').value.trim();
+    const toName = document.getElementById('tradeNameInput').value.trim();
     
     if (!itemName) {
         showTradeMessage('Выбери предмет');
         return;
     }
     
-    if (!toToken) {
-        showTradeMessage('Введи токен получателя');
+    if (!toName) {
+        showTradeMessage('Введи имя получателя');
         return;
     }
     
-    if (toToken === currentUser.token) {
+    // Ищем пользователя по имени
+    const toUser = allUsers.find(u => u.name.toLowerCase() === toName.toLowerCase());
+    
+    if (!toUser) {
+        showTradeMessage('Пользователь с таким именем не найден');
+        return;
+    }
+    
+    if (toUser.name === currentUser.name) {
         showTradeMessage('Нельзя отправить самому себе');
         return;
     }
     
     try {
-        const url = `${CONFIG.googleSheets.webAppUrl}?action=tradeItem&fromToken=${currentUser.token}&toToken=${toToken}&itemName=${itemName}`;
+        const url = `${CONFIG.googleSheets.webAppUrl}?action=tradeItem&fromToken=${currentUser.token}&toToken=${toUser.token}&itemName=${encodeURIComponent(itemName)}`;
         const response = await fetch(url);
         const data = await response.json();
         
         if (data.success) {
             showTradeMessage('✅ Предмет отправлен!', 'success');
             document.getElementById('tradeItemSelect').value = '';
-            document.getElementById('tradeTokenInput').value = '';
+            document.getElementById('tradeNameInput').value = '';
             loadTradeItems();
             loadCollection();
         } else {
@@ -524,17 +581,9 @@ function showError(message) {
 function showTradeMessage(message, type = 'error') {
     const el = document.getElementById('tradeMessage');
     el.textContent = message;
-    el.style.color = type === 'success' ? '#4ecdc4' : '#ff6b6b';
+    el.style.color = type === 'success' ? '#6e8cff' : '#ff6b6b';
     
     setTimeout(() => {
         el.textContent = '';
     }, 3000);
-}
-
-function showLoading() {
-    // Можно добавить прелоадер
-}
-
-function hideLoading() {
-    // Скрыть прелоадер
 }
