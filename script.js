@@ -3,14 +3,33 @@ let currentUser = null;
 let allUsers = []; // Для поиска по имени
 
 // Инициализация при загрузке
-document.addEventListener('DOMContentLoaded', () => {
-    // Сразу загружаем всех пользователей
-    loadAllUsers();
+document.addEventListener('DOMContentLoaded', async () => {
+    // Сразу показываем прелоадер
+    showLoading();
     
-    // Проверяем, есть ли сохраненный токен
-    const savedToken = localStorage.getItem('lapcase_token');
-    if (savedToken) {
-        loginWithToken(savedToken);
+    // Загружаем всех пользователей
+    await loadAllUsers();
+    
+    // Проверяем, есть ли сохраненная сессия
+    const savedSession = localStorage.getItem('lapcase_session');
+    if (savedSession) {
+        try {
+            const session = JSON.parse(savedSession);
+            // Проверяем, не устарела ли сессия (например, 24 часа)
+            const sessionAge = Date.now() - session.timestamp;
+            if (sessionAge < 24 * 60 * 60 * 1000) { // 24 часа
+                await loginWithToken(session.token);
+            } else {
+                // Сессия устарела
+                localStorage.removeItem('lapcase_session');
+                hideLoading();
+            }
+        } catch (e) {
+            localStorage.removeItem('lapcase_session');
+            hideLoading();
+        }
+    } else {
+        hideLoading();
     }
     
     // Обработчики кнопок
@@ -39,7 +58,75 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Трейд
     document.getElementById('tradeBtn').addEventListener('click', tradeItem);
+    
+    // Добавляем эффекты при наведении
+    addHoverEffects();
 });
+
+// Функция для добавления эффектов
+function addHoverEffects() {
+    // Добавляем случайные цвета для карточек
+    document.querySelectorAll('.case-card, .inventory-card, .item-card').forEach(card => {
+        card.addEventListener('mouseenter', () => {
+            const hue = Math.random() * 360;
+            card.style.borderColor = `hsl(${hue}, 70%, 60%)`;
+        });
+        
+        card.addEventListener('mouseleave', () => {
+            card.style.borderColor = '';
+        });
+    });
+}
+
+// Показать загрузку
+function showLoading() {
+    const loader = document.createElement('div');
+    loader.className = 'global-loader';
+    loader.innerHTML = '<div class="spinner"></div>';
+    loader.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #0a0c0f;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    `;
+    
+    const spinner = document.createElement('div');
+    spinner.style.cssText = `
+        width: 50px;
+        height: 50px;
+        border: 3px solid #2b2f3a;
+        border-top-color: #6e8cff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    `;
+    
+    loader.appendChild(spinner);
+    document.body.appendChild(loader);
+    
+    // Добавляем стиль для анимации
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Скрыть загрузку
+function hideLoading() {
+    const loader = document.querySelector('.global-loader');
+    if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+    }
+}
 
 // Загрузка всех пользователей (для поиска по имени)
 async function loadAllUsers() {
@@ -68,6 +155,8 @@ function login() {
 }
 
 async function loginWithToken(token) {
+    showLoading();
+    
     try {
         const url = `${CONFIG.googleSheets.webAppUrl}?action=getUser&token=${token}`;
         const response = await fetch(url);
@@ -76,8 +165,13 @@ async function loginWithToken(token) {
         if (data.success) {
             currentUser = data.user;
             
-            // Сохраняем в localStorage
-            localStorage.setItem('lapcase_token', token);
+            // Сохраняем сессию с временной меткой
+            const session = {
+                token: token,
+                timestamp: Date.now(),
+                userName: currentUser.name
+            };
+            localStorage.setItem('lapcase_session', JSON.stringify(session));
             
             // Обновляем интерфейс
             document.getElementById('userNameDisplay').textContent = currentUser.name;
@@ -95,22 +189,71 @@ async function loginWithToken(token) {
                 loadMarket(),
                 loadTradeItems()
             ]);
+            
+            // Добавляем эффекты
+            addHoverEffects();
+            
+            // Показываем приветствие
+            showNotification(`Добро пожаловать, ${currentUser.name}!`);
         } else {
             showError('Неверный токен');
         }
     } catch (error) {
         showError('Ошибка соединения');
         console.error(error);
+    } finally {
+        hideLoading();
     }
+}
+
+// Показать уведомление
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? 'linear-gradient(135deg, #6e8cff, #9f7aff)' : '#ff6b6b'};
+        color: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+    
+    // Добавляем стили для анимации
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 // Выход
 function logout() {
-    localStorage.removeItem('lapcase_token');
+    localStorage.removeItem('lapcase_session');
     currentUser = null;
     document.getElementById('loginScreen').classList.add('active');
     document.getElementById('mainScreen').classList.remove('active');
     document.getElementById('tokenInput').value = '';
+    showNotification('Вы вышли из аккаунта', 'info');
 }
 
 // Показать страницу
@@ -149,7 +292,7 @@ async function buyCase(caseKey) {
     const caseData = CONFIG.cases[caseKey];
     
     if (currentUser.balance < caseData.price) {
-        alert('Недостаточно средств!');
+        showNotification('Недостаточно средств!', 'error');
         return;
     }
     
@@ -161,13 +304,26 @@ async function buyCase(caseKey) {
         if (data.success) {
             currentUser.balance = data.newBalance;
             document.getElementById('balanceDisplay').textContent = currentUser.balance;
-            alert('Кейс куплен!');
+            showNotification('Кейс куплен!');
             loadInventory(); // Обновляем инвентарь
+            
+            // Обновляем сессию
+            updateSession();
         } else {
-            alert(data.error || 'Ошибка при покупке');
+            showNotification(data.error || 'Ошибка при покупке', 'error');
         }
     } catch (error) {
-        alert('Ошибка при покупке');
+        showNotification('Ошибка при покупке', 'error');
+    }
+}
+
+// Обновление сессии
+function updateSession() {
+    const session = localStorage.getItem('lapcase_session');
+    if (session) {
+        const sessionData = JSON.parse(session);
+        sessionData.timestamp = Date.now();
+        localStorage.setItem('lapcase_session', JSON.stringify(sessionData));
     }
 }
 
@@ -193,9 +349,10 @@ async function loadInventory() {
                 return;
             }
             
-            unopenedCases.forEach(c => {
+            unopenedCases.forEach((c, index) => {
                 const card = document.createElement('div');
                 card.className = 'inventory-card';
+                card.style.animationDelay = `${index * 0.1}s`;
                 card.innerHTML = `
                     <h3>${c.caseName}</h3>
                     <div class="case-price">${c.price} ₽</div>
@@ -232,9 +389,10 @@ function openCaseModal(caseName) {
     
     // Добавляем много предметов для длинной прокрутки
     for (let i = 0; i < 30; i++) {
-        caseData.items.forEach(item => {
+        caseData.items.forEach((item, index) => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'carousel-item';
+            itemDiv.style.animationDelay = `${index * 0.1}s`;
             itemDiv.innerHTML = `
                 <img src="${item.image}" alt="${item.name}" onerror="this.src='images/placeholder.png'">
                 <span>${item.name}</span>
@@ -265,6 +423,9 @@ function startCaseOpening() {
     openBtn.disabled = true;
     openBtn.style.opacity = '0.5';
     
+    // Добавляем визуальный эффект
+    container.style.boxShadow = '0 0 30px rgba(110, 140, 255, 0.5)';
+    
     // Останавливаем через рандомное время
     setTimeout(() => {
         // Останавливаем анимацию
@@ -279,6 +440,9 @@ function startCaseOpening() {
             left: scrollAmount,
             behavior: 'smooth'
         });
+        
+        // Убираем эффект
+        container.style.boxShadow = '';
         
         // Ждем окончания прокрутки
         setTimeout(() => {
@@ -305,7 +469,7 @@ function startCaseOpening() {
                 // Находим полный предмет
                 const item = caseData.items.find(i => i.name === name);
                 
-                // Показываем результат
+                // Показываем результат с анимацией
                 document.getElementById('resultImage').src = img;
                 document.getElementById('resultName').textContent = name;
                 document.getElementById('resultRarity').textContent = item ? item.rarity : '';
@@ -315,6 +479,7 @@ function startCaseOpening() {
                 // Сохраняем результат
                 if (item) {
                     saveOpenedCase(caseName, item);
+                    showNotification(`Выпал: ${item.name}!`, 'success');
                 }
             }
             
@@ -325,21 +490,6 @@ function startCaseOpening() {
         }, 2000); // Ждем окончания smooth scroll
         
     }, Math.random() * 1000 + 1500); // Останавливаем через 1.5-2.5 секунды
-}
-
-// Выбор предмета по шансам
-function getRandomItemByChance(items) {
-    const random = Math.random() * 100;
-    let cumulativeChance = 0;
-    
-    for (const item of items) {
-        cumulativeChance += item.chance;
-        if (random < cumulativeChance) {
-            return item;
-        }
-    }
-    
-    return items[0];
 }
 
 // Сохранить открытый кейс
@@ -353,6 +503,7 @@ async function saveOpenedCase(caseName, item) {
         // Обновляем инвентарь и коллекцию
         loadInventory();
         loadCollection();
+        updateSession();
     } catch (error) {
         console.error('Ошибка сохранения:', error);
     }
@@ -378,9 +529,10 @@ async function loadCollection() {
                 return;
             }
             
-            data.items.forEach(item => {
+            data.items.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = 'item-card';
+                card.style.animationDelay = `${index * 0.1}s`;
                 card.innerHTML = `
                     <img src="${item.image}" alt="${item.item}" onerror="this.src='images/placeholder.png'">
                     <h4>${item.item}</h4>
@@ -403,7 +555,7 @@ async function sellItem(itemName) {
     const price = prompt('Введи цену для продажи (в рублях):');
     
     if (!price || isNaN(price) || price <= 0) {
-        alert('Введи корректную цену');
+        showNotification('Введи корректную цену', 'error');
         return;
     }
     
@@ -413,14 +565,15 @@ async function sellItem(itemName) {
         const data = await response.json();
         
         if (data.success) {
-            alert('Товар выставлен на продажу!');
+            showNotification('Товар выставлен на продажу!');
             loadCollection();
             loadMarket();
+            updateSession();
         } else {
-            alert(data.error || 'Ошибка при продаже');
+            showNotification(data.error || 'Ошибка при продаже', 'error');
         }
     } catch (error) {
-        alert('Ошибка при продаже');
+        showNotification('Ошибка при продаже', 'error');
     }
 }
 
@@ -442,9 +595,10 @@ async function loadMarket() {
                 return;
             }
             
-            data.items.forEach(item => {
+            data.items.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = 'market-card';
+                card.style.animationDelay = `${index * 0.1}s`;
                 card.innerHTML = `
                     <h4>${item.item}</h4>
                     <p>Продавец: ${item.seller}</p>
@@ -467,12 +621,12 @@ async function buyItem(itemId, sellerToken, itemName, price) {
     if (!currentUser) return;
     
     if (sellerToken === currentUser.token) {
-        alert('Нельзя купить свой товар');
+        showNotification('Нельзя купить свой товар', 'error');
         return;
     }
     
     if (currentUser.balance < price) {
-        alert('Недостаточно средств');
+        showNotification('Недостаточно средств', 'error');
         return;
     }
     
@@ -488,14 +642,15 @@ async function buyItem(itemId, sellerToken, itemName, price) {
             currentUser.balance -= price;
             document.getElementById('balanceDisplay').textContent = currentUser.balance;
             
-            alert('Покупка совершена!');
+            showNotification('Покупка совершена!');
             loadMarket();
             loadCollection();
+            updateSession();
         } else {
-            alert(data.error || 'Ошибка при покупке');
+            showNotification(data.error || 'Ошибка при покупке', 'error');
         }
     } catch (error) {
-        alert('Ошибка при покупке');
+        showNotification('Ошибка при покупке', 'error');
     }
 }
 
@@ -565,6 +720,8 @@ async function tradeItem() {
             document.getElementById('tradeNameInput').value = '';
             loadTradeItems();
             loadCollection();
+            updateSession();
+            showNotification(`Предмет отправлен ${toUser.name}!`);
         } else {
             showTradeMessage('❌ ' + data.error);
         }
